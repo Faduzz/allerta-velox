@@ -1,0 +1,91 @@
+name: build-ios
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Leggi la versione di Flutter
+        id: flutter_version
+        run: echo "version=$(tr -d '[:space:]' < app/.flutter-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: subosito/flutter-action@v2.21.0
+        with:
+          channel: stable
+          flutter-version: ${{ steps.flutter_version.outputs.version }}
+
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Dipendenze Flutter
+        working-directory: app
+        run: flutter pub get
+
+      - name: Analisi statica
+        working-directory: app
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test Dart
+        working-directory: app
+        run: flutter test
+
+      - name: Test Python
+        run: |
+          python -m pip install pytest
+          python -m pytest app/tool -v
+
+  build-ios:
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Leggi la versione di Flutter
+        id: flutter_version
+        run: echo "version=$(tr -d '[:space:]' < app/.flutter-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: subosito/flutter-action@v2.21.0
+        with:
+          channel: stable
+          flutter-version: ${{ steps.flutter_version.outputs.version }}
+
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Genera il progetto iOS
+        working-directory: app
+        run: flutter create --platforms=ios --org it.personale --project-name allerta_velox .
+
+      - name: Controlla che flutter create non abbia sovrascritto il nostro codice
+        run: git diff --exit-code -- app/lib app/pubspec.yaml
+
+      - name: Correggi Info.plist
+        working-directory: app
+        run: python3 tool/patch_info_plist.py ios/Runner/Info.plist
+
+      - name: Build iOS non firmata
+        working-directory: app
+        run: flutter build ios --release --no-codesign
+
+      - name: Crea AllertaVelox.ipa
+        working-directory: app
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/Runner.app
+          zip -qry AllertaVelox.ipa Payload
+
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: AllertaVelox-ipa
+          path: app/AllertaVelox.ipa
+          if-no-files-found: error
