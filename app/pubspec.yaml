@@ -1,0 +1,21 @@
+name: allerta_velox
+description: Avvisi autovelox in background, uso personale.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  geolocator: 14.0.2
+  flutter_local_notifications: 21.0.0
+  timezone: 0.10.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
