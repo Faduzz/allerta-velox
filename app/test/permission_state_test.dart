@@ -63,4 +63,20 @@ void main() {
       expect(notificationHint(granted: false), contains('Impostazioni'));
     });
   });
+
+  group('canStartTracking', () {
+    test('Sempre permette di partire', () {
+      expect(canStartTracking(LocationUiState.ready), isTrue);
+    });
+
+    test('solo in uso permette di partire, per provare in primo piano', () {
+      expect(canStartTracking(LocationUiState.whileInUseOnly), isTrue);
+    });
+
+    test('servizi spenti o permesso negato impediscono di partire', () {
+      expect(canStartTracking(LocationUiState.servicesOff), isFalse);
+      expect(canStartTracking(LocationUiState.denied), isFalse);
+      expect(canStartTracking(LocationUiState.deniedForever), isFalse);
+    });
+  });
 }
