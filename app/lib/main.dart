@@ -32,6 +32,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   TrackingSnapshot? _last;
   LocationUiState _state = LocationUiState.denied;
   String? _notificationHint;
+  String? _streamError;
 
   @override
   void initState() {
@@ -53,19 +54,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _refreshState();
   }
 
-  Future<void> _refreshState() async {
+  Future<LocationUiState> _refreshState() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     final permission = await Geolocator.checkPermission();
-    if (!mounted) return;
-    setState(() {
-      _state = describeLocationState(
-        serviceEnabled: enabled,
-        permission: permission,
-      );
-    });
+    final state = describeLocationState(
+      serviceEnabled: enabled,
+      permission: permission,
+    );
+    if (mounted) setState(() => _state = state);
+    return state;
   }
 
   Future<void> _start() async {
+    // Servizi spenti: la schermata spiega cosa fare, niente stream.
+    if (await _refreshState() == LocationUiState.servicesOff) return;
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission(); // «in uso»
@@ -73,15 +75,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (permission == LocationPermission.whileInUse) {
       permission = await Geolocator.requestPermission(); // passa a «Sempre»
     }
-    await _refreshState();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return;
-    }
+    if (!canStartTracking(await _refreshState())) return;
+    _streamError = null;
     await _sub?.cancel();
-    _sub = _tracking.start().listen((snapshot) {
-      if (mounted) setState(() => _last = snapshot);
-    });
+    _sub = _tracking.start().listen(
+      (snapshot) {
+        if (mounted) setState(() => _last = snapshot);
+      },
+      onError: (Object error) {
+        if (mounted) setState(() => _streamError = '$error');
+      },
+    );
   }
 
   Future<void> _stop() async {
@@ -136,6 +140,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final hint = _notificationHint;
+    final error = _streamError;
     return Scaffold(
       appBar: AppBar(title: const Text('Allerta Velox · tappa 1')),
       body: ListView(
@@ -143,6 +148,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         children: [
           Text(_stateMessage(_state)),
           if (hint != null) ...[const SizedBox(height: 8), Text(hint)],
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text('Errore GPS: $error'),
+          ],
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _start,

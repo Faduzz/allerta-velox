@@ -29,6 +29,12 @@ LocationUiState describeLocationState({
   }
 }
 
+/// Il tracciamento parte solo con servizi accesi e permesso concesso.
+/// «Solo in uso» basta per provare in primo piano; la schermata avvisa che
+/// in background non funziona.
+bool canStartTracking(LocationUiState state) =>
+    state == LocationUiState.ready || state == LocationUiState.whileInUseOnly;
+
 /// `null` se il permesso notifiche è concesso, altrimenti il testo da mostrare.
 String? notificationHint({required bool granted}) {
   if (granted) return null;
